@@ -29,6 +29,10 @@ Increase max depth from 6 to 8.
 
 ![alt text](third.png)
 
+Using gridsearch CV i tuned the parameters automatically by itterating through a set of possible parametrs. Giving this result. 
+
+![alt text](Gridsearch.png)
+
 
 
 
