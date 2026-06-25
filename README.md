@@ -21,7 +21,15 @@ Training
 
 First run used 50/50 SMOTE and came back with 153 false alarms and 12 missed frauds. With 86 legitimate frauds caught. 
 
-![alt text](image.png)
+second run
+
+![alt text](Second_run.png)
+
+Increase max depth from 6 to 8. 
+
+![alt text](third.png)
+
+
 
 
 

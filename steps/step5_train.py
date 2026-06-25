@@ -13,7 +13,7 @@ def train_xgboost(X_train_bal, y_train_bal, X_test, y_test):
     # scale_pos_weight can be left at 1 since SMOTE already balanced the data
     model = XGBClassifier(
         n_estimators=100,      # Number of trees to build
-        max_depth=6,           # Maximum depth of each tree
+        max_depth=8,           # Maximum depth of each tree
         learning_rate=0.1,     # Step size shrinkage to prevent overfitting
         random_state=42,
         eval_metric='logloss'
