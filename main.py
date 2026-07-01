@@ -21,4 +21,4 @@ fraud_model = train_xgboost(X_train_balanced, y_train_balanced, X_test, y_test)
 
 #best_fraud_model = tune_xgboost(X_train_balanced, y_train_balanced, X_test, y_test)
 
-final_production_model = tune_smote_ratio(X_train, y_train, X_test, y_test)
+#final_production_model = tune_smote_ratio(X_train, y_train, X_test, y_test)
