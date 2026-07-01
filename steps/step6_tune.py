@@ -1,56 +1,65 @@
-import pandas as pd
+from imblearn.pipeline import Pipeline
+from imblearn.over_sampling import SMOTE
 from xgboost import XGBClassifier
-from sklearn.model_selection import GridSearchCV
-from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.model_selection import GridSearchCV, StratifiedKFold
+from sklearn.metrics import make_scorer, fbeta_score, classification_report, confusion_matrix
 
-def tune_xgboost(X_train_bal, y_train_bal, X_test, y_test):
+
+def tune_xgboost(X_train, y_train, X_val, y_val, random_state=42):
     """
-    Runs a Grid Search across specified XGBoost hyperparameters
-    to find the combination that yields the highest F1-score.
+    Step 6: Hyperparameter tuning for XGBoost.
+
+    IMPROVEMENTS vs the original version:
+      - SMOTE now lives INSIDE the pipeline, so it's refit fresh on every
+        CV fold. The original version tuned on data that had already been
+        SMOTE'd before the CV split, which leaks synthetic samples derived
+        from each other across folds and inflates the CV score.
+      - Scoring is F2 (recall-weighted) instead of plain F1. F2 still
+        penalises false alarms, but weights catching fraud more heavily,
+        which better matches the actual business priority.
+      - Evaluated here on the VALIDATION set (not test) -- the test set is
+        reserved for the final one-time evaluation in step 9.
     """
-    print("--- Starting Hyperparameter Grid Search ---")
-    
-    # 1. Initialize a base model
-    base_model = XGBClassifier(random_state=42, eval_metric='logloss')
-    
-    # 2. Define the grid of parameters you want to test
-    # (Keep it relatively small at first, as every combo multiplies training time)
+    print("--- Step 6: Starting Hyperparameter Grid Search ---")
+
+    pipeline = Pipeline([
+        ('smote', SMOTE(sampling_strategy=0.1, random_state=random_state)),
+        ('xgb', XGBClassifier(random_state=random_state, eval_metric='logloss', n_jobs=-1)),
+    ])
+
     param_grid = {
-        'max_depth': [4, 6, 8],
-        'learning_rate': [0.05, 0.1, 0.2],
-        'n_estimators': [50, 100, 150]
+        'xgb__max_depth': [4, 6, 8],
+        'xgb__learning_rate': [0.05, 0.1, 0.2],
+        'xgb__n_estimators': [50, 100, 150],
     }
-    
-    # 3. Set up GridSearchCV
-    # cv=3 means 3-fold cross-validation. scoring='f1' optimizes for precision+recall balance.
+
+    f2_scorer = make_scorer(fbeta_score, beta=2)
+    cv = StratifiedKFold(n_splits=3, shuffle=True, random_state=random_state)
+
     grid_search = GridSearchCV(
-        estimator=base_model,
+        estimator=pipeline,
         param_grid=param_grid,
-        cv=3,
-        scoring='f1',
-        n_jobs=-1,        # Use all available CPU cores to speed it up
-        verbose=2         # Prints progress updates to the console
+        cv=cv,
+        scoring=f2_scorer,
+        n_jobs=-1,
+        verbose=2,
     )
-    
-    # 4. Fit the grid search on your BALANCED training data
-    print("Searching for the best parameters... This will take a few minutes.")
-    grid_search.fit(X_train_bal, y_train_bal)
-    
-    # 5. Extract the champion model
-    best_model = grid_search.best_estimator_
-    
+
+    print("Searching for the best parameters... this will take a few minutes.")
+    grid_search.fit(X_train, y_train)
+
+    best_pipeline = grid_search.best_estimator_
+
     print("\nGrid Search Complete!")
     print(f"Best Parameters Found: {grid_search.best_params_}")
-    print(f"Best Training Cross-Validation F1-Score: {grid_search.best_score_:.4f}")
-    
-    # 6. Evaluate the champion model on the untouched test data
-    y_pred = best_model.predict(X_test)
-    
-    print("\n" + "="*20 + " CHAMPION MODEL EVALUATION " + "="*20)
-    print(classification_report(y_test, y_pred, target_names=['Legitimate', 'Fraud']))
-    
+    print(f"Best Training Cross-Validation F2-Score: {grid_search.best_score_:.4f}")
+
+    y_pred = best_pipeline.predict(X_val)
+
+    print("\n" + "=" * 20 + " STEP 6 VALIDATION CHECK " + "=" * 20)
+    print(classification_report(y_val, y_pred, target_names=['Legitimate', 'Fraud']))
     print("Confusion Matrix:")
-    print(confusion_matrix(y_test, y_pred))
-    print("="*60 + "\n")
-    
-    return best_model
+    print(confusion_matrix(y_val, y_pred))
+    print("=" * 63 + "\n")
+
+    return best_pipeline
